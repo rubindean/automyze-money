@@ -6,3 +6,41 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model Transaction {
+  id          String   @id @default(cuid())
+  date        DateTime
+  bank        String
+  merchant    String
+  category    String
+  allocation  String?
+  amount      Float
+  direction   String   @default("Out")
+  reconciled  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Budget {
+  id        String   @id @default(cuid())
+  category  String   @unique
+  amount    Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CategoryRule {
+  id        String   @id @default(cuid())
+  keyword   String
+  category  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MerchantCleanRule {
+  id        String   @id @default(cuid())
+  contains  String
+  cleanName String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
