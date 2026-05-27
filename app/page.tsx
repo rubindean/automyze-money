@@ -139,6 +139,8 @@ export default function Home() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [accountFilter, setAccountFilter] = useState("All Accounts");
+  const [newBudgetCategory, setNewBudgetCategory] = useState("");
+  const [newBudgetAmount, setNewBudgetAmount] = useState("");
 
   useEffect(() => {
     async function loadDatabaseData() {
@@ -241,6 +243,75 @@ export default function Home() {
     setToDate(formatDateInput(range.end));
   }
 
+async function saveBudget() {
+  const response = await fetch("/api/budgets", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      category: newBudgetCategory,
+      amount: Number(newBudgetAmount),
+    }),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    alert(result.error || "Could not save budget.");
+    return;
+  }
+
+  setBudget((currentBudget) => {
+    const existing = currentBudget.find(
+      (item) => item.category.toLowerCase() === result.category.toLowerCase()
+    );
+
+    if (existing) {
+      return currentBudget.map((item) =>
+        item.category.toLowerCase() === result.category.toLowerCase()
+          ? { category: result.category, budget: result.amount }
+          : item
+      );
+    }
+
+    return [...currentBudget, { category: result.category, budget: result.amount }];
+  });
+
+  setNewBudgetCategory("");
+  setNewBudgetAmount("");
+
+  alert("Budget saved.");
+}
+
+async function deleteBudget(category: string) {
+  const confirmed = confirm(`Delete budget category "${category}"?`);
+
+  if (!confirmed) return;
+
+  const response = await fetch("/api/budgets", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ category }),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    alert(result.error || "Could not delete budget.");
+    return;
+  }
+
+  setBudget((currentBudget) =>
+    currentBudget.filter(
+      (item) => item.category.toLowerCase() !== category.toLowerCase()
+    )
+  );
+
+  alert("Budget deleted.");
+}
 async function handleCsvUpload(event: React.ChangeEvent<HTMLInputElement>) {
 
   const file = event.target.files?.[0];
@@ -440,7 +511,16 @@ async function saveAllAllocations() {
         )}
 
         {activeTab === "Budget" && (
-          <BudgetView budget={budget} categoryTotals={categoryTotals} />
+          <BudgetView
+            budget={budget}
+            categoryTotals={categoryTotals}
+            newBudgetCategory={newBudgetCategory}
+            setNewBudgetCategory={setNewBudgetCategory}
+            newBudgetAmount={newBudgetAmount}
+            setNewBudgetAmount={setNewBudgetAmount}
+            onSaveBudget={saveBudget}
+            onDeleteBudget={deleteBudget}
+          />
         )}
 
         {activeTab === "Needs Review" && (
@@ -521,13 +601,48 @@ function DashboardView({
 function BudgetView({
   budget,
   categoryTotals,
+  newBudgetCategory,
+  setNewBudgetCategory,
+  newBudgetAmount,
+  setNewBudgetAmount,
+  onSaveBudget,
+  onDeleteBudget,
 }: {
   budget: { category: string; budget: number }[];
   categoryTotals: Record<string, number>;
+  newBudgetCategory: string;
+  setNewBudgetCategory: (value: string) => void;
+  newBudgetAmount: string;
+  setNewBudgetAmount: (value: string) => void;
+  onSaveBudget: () => void;
+  onDeleteBudget: (category: string) => void;
 }) {
   return (
     <section className="rounded-2xl bg-white p-5 shadow-sm">
       <h2 className="mb-4 text-xl font-bold">Budget vs Actual</h2>
+      <div className="mb-6 grid grid-cols-1 gap-3 rounded-2xl bg-slate-50 p-4 md:grid-cols-[1fr_180px_140px]">
+  <input
+    value={newBudgetCategory}
+    onChange={(event) => setNewBudgetCategory(event.target.value)}
+    className="rounded-xl border border-slate-200 px-4 py-3"
+    placeholder="Category e.g. Fuel"
+  />
+
+  <input
+    value={newBudgetAmount}
+    onChange={(event) => setNewBudgetAmount(event.target.value)}
+    className="rounded-xl border border-slate-200 px-4 py-3"
+    placeholder="Amount"
+    type="number"
+  />
+
+  <button
+    onClick={onSaveBudget}
+    className="rounded-xl bg-slate-950 px-4 py-3 font-semibold text-white"
+  >
+    Save Budget
+  </button>
+</div>
       <div className="space-y-4">
         {budget.map((item) => {
           const actual = categoryTotals[item.category] || 0;
@@ -536,11 +651,21 @@ function BudgetView({
 
           return (
             <div key={item.category}>
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between gap-3 text-sm">
                 <span className="font-semibold">{item.category}</span>
-                <span className={remaining < 0 ? "font-semibold text-red-600" : "font-semibold text-emerald-600"}>
-                  {formatMoney(remaining)} left
-                </span>
+
+                <div className="flex items-center gap-3">
+                  <span className={remaining < 0 ? "font-semibold text-red-600" : "font-semibold text-emerald-600"}>
+                    {formatMoney(remaining)} left
+                  </span>
+
+                  <button
+                    onClick={() => onDeleteBudget(item.category)}
+                    className="rounded-lg bg-red-50 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-100"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
               <div className="mt-2 h-3 overflow-hidden rounded-full bg-slate-200">
                 <div
